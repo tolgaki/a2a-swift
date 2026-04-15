@@ -3,42 +3,36 @@
 [![Swift 6.0](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
 [![Platforms](https://img.shields.io/badge/platforms-macOS%2014%20%7C%20iOS%2017%20%7C%20tvOS%2017%20%7C%20watchOS%2010%20%7C%20visionOS%201-blue.svg)](https://swift.org)
 
-Swift implementation of the **[Agent2Agent (A2A) Protocol v1.0](https://a2a-protocol.org/latest/)** — client and server in a single package.
+Swift client library for the **[Agent2Agent (A2A) Protocol v1.0](https://a2a-protocol.org/latest/)**.
 
-## Products
-
-This package ships three library products:
+## What this package ships
 
 | Product | Purpose | Transitive deps |
 | --- | --- | --- |
-| `A2ACore` | Wire types, models, errors, SSE parser. Shared by client and server. | none |
-| `A2AClient` | HTTP+JSON and JSON-RPC 2.0 client transports. | `A2ACore` |
-| `A2AServer` | Hummingbird-based server runtime. | `A2ACore` + Hummingbird |
+| `A2ACore` | Wire types, models, errors, SSE parser. Used by both client and server. | **none** |
+| `A2AClient` | HTTP+JSON and JSON-RPC 2.0 client transports. | **none** (beyond A2ACore) |
 
-Consumers who only need the client (iOS/macOS apps) import `A2AClient` and never pay the cost of the server runtime.
+**Zero third-party dependencies.** An iOS or macOS app importing `A2AClient` pulls nothing beyond the Swift standard library and Foundation.
+
+> **Need a server?** Use [`a2a-swift-server`](https://github.com/tolgaki/a2a-swift-server), which depends on this package and adds `A2AServer` built on Hummingbird. The two are intentionally split so client-only consumers never pull the server's transitive dependency graph (~20 packages).
 
 ## Installation
 
-Add to your `Package.swift`:
-
 ```swift
 dependencies: [
-    .package(url: "https://github.com/tolgaki/a2a-swift.git", from: "1.1.0")
+    .package(url: "https://github.com/tolgaki/a2a-swift.git", from: "1.2.0")
 ],
 targets: [
     .target(
         name: "YourApp",
         dependencies: [
-            // Client-only (iOS apps):
             .product(name: "A2AClient", package: "a2a-swift"),
-            // Server:
-            // .product(name: "A2AServer", package: "a2a-swift"),
         ]
     )
 ]
 ```
 
-## Quickstart — client
+## Quickstart
 
 ```swift
 import A2AClient
@@ -54,62 +48,9 @@ case .task(let task):
 }
 ```
 
-## Quickstart — server
-
-```swift
-import A2ACore
-import A2AServer
-
-struct EchoHandler: A2AHandler {
-    func handleMessage(_ message: Message, auth: AuthContext?) async throws -> SendMessageResponse {
-        .message(Message(
-            messageId: UUID().uuidString,
-            role: .agent,
-            parts: [.text("echo: \(message.textContent)")]
-        ))
-    }
-
-    func agentCard(baseURL: String) -> AgentCard {
-        AgentCard(
-            name: "Echo",
-            description: "Echoes the user's message back.",
-            supportedInterfaces: [
-                AgentInterface(url: baseURL, protocolBinding: AgentInterface.httpJSON, protocolVersion: "1.0"),
-            ],
-            version: "1.0"
-        )
-    }
-}
-
-try await A2AServer(handler: EchoHandler())
-    .bind("127.0.0.1:8080")
-    .run()
-```
-
-That's it. The server automatically:
-
-- Exposes **both** `GET /.well-known/agent-card.json` (spec §8.2) and `GET /.well-known/agent.json` (legacy fallback).
-- Registers all 11 REST routes per spec §5.3.
-- Registers a single `POST /` JSON-RPC 2.0 dispatcher.
-- Handles `getTask`, `listTasks`, `cancelTask`, and push notification CRUD against an in-memory `TaskStore` / `WebhookStore` — your handler only has to implement `handleMessage`.
-- Fans out task events to registered webhooks with exponential backoff retries.
-
-### Advanced server usage
-
-```swift
-let server = A2AServer(
-    handler: myHandler,
-    taskStore: RedisTaskStore(...),           // plug in your own backend
-    webhookStore: PostgresWebhookStore(...),
-    authenticator: EntraAuthenticator(tenantId: "...")
-)
-.bind("0.0.0.0:8443")
-.requireAuthentication(true)
-```
-
 ## Spec compliance
 
-All 11 core A2A v1.0 operations are implemented on both the client and server, over both transport bindings:
+All 11 core A2A v1.0 operations over both transport bindings:
 
 | Operation | REST | JSON-RPC method |
 | --- | --- | --- |
@@ -127,34 +68,9 @@ All 11 core A2A v1.0 operations are implemented on both the client and server, o
 
 Plus `GET /.well-known/agent-card.json` for discovery.
 
-### Compliance test coverage
-
-`A2AInteropTests` boots an `A2AServer` in-process on an ephemeral port and runs the `A2AClient` against it over **both** REST and JSON-RPC. Every core operation has two tests (one per binding). 136 total tests in the suite, all green.
-
-## Authentication
-
-The server ships with two authenticators:
-
-- `NoOpBearerAuthenticator` — accepts any non-empty `Bearer <token>` and passes the raw token to the handler. **Default.** Suitable for Microsoft Entra, Auth0, Keycloak, AWS Cognito, or any other identity provider — the handler brings its own validation.
-- `APIKeyAuthenticator` — validates an `X-API-Key` header against an allowlist or a closure.
-
-No JWT library is bundled. A2A deliberately doesn't mandate a token shape; the server lets consumers plug in whatever validation suits their identity provider.
-
 ## Examples
 
-15 executable targets in `Examples/`:
-
-### Server examples
-
-| Target | What it demonstrates |
-| --- | --- |
-| `EchoAgent` | Minimal 5-line server handler |
-| `StreamingAgent` | Full SSE lifecycle with chunked artifacts |
-| `CustomHandler` | Multi-skill routing + artifact responses |
-| `PushNotificationsAgent` | Webhook CRUD + dispatch |
-| `MultiAgent` | Coordinator + worker in one process (uses both `A2AClient` and `A2AServer`) |
-
-### Client examples
+Client-side examples in `Examples/`:
 
 | Target | What it demonstrates |
 | --- | --- |
@@ -166,16 +82,18 @@ No JWT library is bundled. A2A deliberately doesn't mandate a token shape; the s
 | `TaskLifecycleDemo` | Submit, poll, list, inspect, cancel |
 | `PushNotificationDemo` | Webhook CRUD (client side) |
 | `AuthShowcase` | Every built-in auth provider (offline-safe) |
-| `TravelPlannerAgent` | Multi-agent orchestration with skill routing |
-| `SmartTravelPlanner` | LLM-style intent routing on top of the orchestrator |
 
 Run any example with `swift run <TargetName>`.
 
 ## Relationship to `a2a-client-swift`
 
-`a2a-swift` is a strict superset of [`a2a-client-swift 1.0.19`](https://github.com/tolgaki/a2a-client-swift). The entire client codebase was lifted verbatim into `A2ACore` + `A2AClient`. No client APIs changed.
+`a2a-swift` is the successor to [`a2a-client-swift`](https://github.com/tolgaki/a2a-client-swift). The entire 1.0.19 client codebase was lifted verbatim; no API changed.
 
-`a2a-client-swift 1.0.20` ships as a thin re-export shim that depends on `a2a-swift`, giving existing consumers a zero-code-change upgrade path. After a short transition period, `a2a-client-swift` will be archived and `a2a-swift` becomes the single source of truth.
+`a2a-client-swift 1.0.20` ships as a re-export shim that transitively depends on this package, so existing `.package(url: "…a2a-client-swift…")` declarations keep working.
+
+## Relationship to `a2a-swift-server`
+
+`a2a-swift-server` depends on this package and provides `A2AServer` — a Hummingbird-based server runtime. The two are separate packages so client-only consumers don't pay the cost of the server's transitive dependency graph. If you need both, add both packages.
 
 ## License
 

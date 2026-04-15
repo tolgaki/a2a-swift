@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-04-15
+
+### Breaking (client consumers are unaffected)
+
+- **`A2AServer` target and product removed.** The server runtime has been moved to a separate repository, [`a2a-swift-server`](https://github.com/tolgaki/a2a-swift-server), so that client-only consumers no longer pull Hummingbird + SwiftNIO + ~20 transitive packages through their SPM graph.
+- **`A2AInteropTests` target removed.** Lives in `a2a-swift-server` now — it needs both client and server.
+- **Server-side example targets removed**: `EchoAgent`, `CustomHandler`, `StreamingAgent`, `PushNotificationsAgent`, `MultiAgent`. All lifted unchanged into `a2a-swift-server`.
+- **Package-level dependency on `hummingbird` removed.** `a2a-swift 1.2.0` has **zero third-party dependencies**.
+
+### Migration for server consumers
+
+If you were importing `A2AServer` from `a2a-swift 1.1.0`:
+
+```swift
+// Before
+.package(url: "https://github.com/tolgaki/a2a-swift.git", from: "1.1.0"),
+.target(dependencies: [
+    .product(name: "A2AServer", package: "a2a-swift")
+])
+
+// After
+.package(url: "https://github.com/tolgaki/a2a-swift-server.git", from: "1.1.0"),
+.target(dependencies: [
+    .product(name: "A2AServer", package: "a2a-swift-server")
+])
+```
+
+All API surfaces (`A2AHandler`, `A2AServer` actor, `TaskStore`, `Authenticator`, etc.) are unchanged — only the package name changes. Your `import A2AServer` statements keep working.
+
+### Rationale
+
+An iOS app importing `A2AClient` from `a2a-swift 1.1.0` was resolving 25 packages in total (Hummingbird plus its full NIO/log/metrics/crypto/certificates transitive graph), even though `A2AClient` itself has zero dependencies beyond `A2ACore`. SPM resolves package-level dependencies transitively regardless of which targets are actually reachable from the consumer's graph. The cleanest fix is to remove Hummingbird from `a2a-swift`'s manifest entirely.
+
+After the split, an iOS app importing `A2AClient` resolves **one** package: `a2a-swift`. Zero transitive packages.
+
 ## [1.1.0] - 2026-04-14
 
 First stable release of `a2a-swift` as a unified package providing both client and server support for the A2A Protocol v1.0.
@@ -63,5 +98,6 @@ First stable release of `a2a-swift` as a unified package providing both client a
 
 Initial lift from `a2a-client-swift 1.0.19`. See git history for details.
 
+[1.2.0]: https://github.com/tolgaki/a2a-swift/releases/tag/1.2.0
 [1.1.0]: https://github.com/tolgaki/a2a-swift/releases/tag/1.1.0
 [1.1.0-alpha]: https://github.com/tolgaki/a2a-swift/releases/tag/1.1.0-alpha

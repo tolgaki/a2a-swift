@@ -15,11 +15,11 @@ let package = Package(
     products: [
         .library(name: "A2ACore", targets: ["A2ACore"]),
         .library(name: "A2AClient", targets: ["A2AClient"]),
-        .library(name: "A2AServer", targets: ["A2AServer"]),
     ],
-    dependencies: [
-        .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.5.0"),
-    ],
+    // No external dependencies. Consumers get A2AClient with zero
+    // transitive package graph. For the server runtime, add
+    // https://github.com/tolgaki/a2a-swift-server as a separate package.
+    dependencies: [],
     targets: [
         .target(
             name: "A2ACore",
@@ -29,14 +29,6 @@ let package = Package(
             name: "A2AClient",
             dependencies: ["A2ACore"],
             path: "Sources/A2AClient"
-        ),
-        .target(
-            name: "A2AServer",
-            dependencies: [
-                "A2ACore",
-                .product(name: "Hummingbird", package: "hummingbird"),
-            ],
-            path: "Sources/A2AServer"
         ),
         .testTarget(
             name: "A2ACoreTests",
@@ -48,47 +40,14 @@ let package = Package(
             dependencies: ["A2ACore", "A2AClient"],
             path: "Tests/A2AClientTests"
         ),
-        .testTarget(
-            name: "A2AInteropTests",
-            dependencies: ["A2ACore", "A2AClient", "A2AServer"],
-            path: "Tests/A2AInteropTests"
-        ),
 
-        // MARK: - Example executables
+        // MARK: - Example executables (client-only)
 
-        // New server examples
-        .executableTarget(
-            name: "EchoAgent",
-            dependencies: ["A2AServer"],
-            path: "Examples/EchoAgent"
-        ),
-        .executableTarget(
-            name: "CustomHandler",
-            dependencies: ["A2AServer"],
-            path: "Examples/CustomHandler"
-        ),
-        .executableTarget(
-            name: "StreamingAgent",
-            dependencies: ["A2AServer"],
-            path: "Examples/StreamingAgent"
-        ),
-        .executableTarget(
-            name: "PushNotificationsAgent",
-            dependencies: ["A2AServer", "A2AClient"],
-            path: "Examples/PushNotificationsAgent"
-        ),
-        .executableTarget(
-            name: "MultiAgent",
-            dependencies: ["A2AServer", "A2AClient"],
-            path: "Examples/MultiAgent"
-        ),
         .executableTarget(
             name: "SimpleClient",
             dependencies: ["A2AClient"],
             path: "Examples/SimpleClient"
         ),
-
-        // Lifted client examples
         .executableTarget(
             name: "HelloAgent",
             dependencies: ["A2AClient"],
