@@ -5,27 +5,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0-alpha] - 2026-04-14
+## [1.1.0] - 2026-04-14
+
+First stable release of `a2a-swift` as a unified package providing both client and server support for the A2A Protocol v1.0.
 
 ### Added
 
-- **New unified package** combining client and server support for A2A Protocol v1.0.
-- Three library products: `A2ACore` (wire types), `A2AClient` (HTTP+JSON and JSON-RPC transports), `A2AServer` (runtime — placeholder).
-- `A2ACore/Streaming/SSEParser.swift` — SSE parser extracted from `HTTPTransport` and made public. Shared between client and server.
-- `A2ACore/Transport/Endpoint.swift` — `A2AEndpoint`, `HTTPMethod`, `A2AServiceParameters`, `JSONKeyCasing` lifted into Core so server code can register routes against the same endpoint definitions the client uses.
+- **`A2AServer` target** — Hummingbird 2.x-based server runtime with:
+  - `A2AHandler` protocol — required methods: `handleMessage`, `agentCard(baseURL:)`. Everything else (streaming, task cancel, extended card) is defaulted.
+  - `A2ADispatcher` — transport-agnostic dispatch layer used by both REST and JSON-RPC routers.
+  - REST dispatcher — registers all 11 operations at spec §5.3 paths plus `/.well-known/agent-card.json` and `/.well-known/agent.json` discovery routes. AIP-193 error response shaping (`{"error":{"code":…,"status":"…","message":"…"}}`).
+  - JSON-RPC dispatcher — single `POST /` route that multiplexes all 11 operations by method name. JSON-RPC 2.0 error envelopes.
+  - SSE encoder for streaming operations (`/message:stream`, `/tasks/{id}:subscribe`) supporting both bare-event (REST) and JSON-RPC-wrapped (RPC) framing.
+  - `TaskStore` and `WebhookStore` protocols with in-memory `actor`-based defaults (`InMemoryTaskStore`, `InMemoryWebhookStore`).
+  - `TaskRegistry` for tracking in-flight Swift Tasks so `cancelTask` actually interrupts background work.
+  - `WebhookDispatcher` with exponential backoff retries (500ms → 30s, 3 attempts) for push notification delivery.
+  - `Authenticator` protocol + two built-ins: `NoOpBearerAuthenticator` (default, hands the raw bearer to the handler) and `APIKeyAuthenticator`. Zero third-party auth dependencies — consumers bring their own JWT/introspection validation for AAD/Entra, Auth0, Keycloak, etc.
+  - `A2AServer` public actor with a builder API (`.bind`, `.rpcPath`, `.restPrefix`, `.taskStore`, `.webhookStore`, `.authenticator`, `.requireAuthentication`).
+
+- **`A2AInteropTests` target** — boots an `A2AServer` in-process on an ephemeral port and runs the full `A2AClient` against it. 17 tests covering every core operation over both REST and JSON-RPC, plus discovery, task CRUD, push notification CRUD, and streaming lifecycle.
+
+- **6 new server examples**: `EchoAgent`, `CustomHandler`, `StreamingAgent`, `PushNotificationsAgent`, `MultiAgent`, `SimpleClient`.
+
+- **9 lifted client examples**: `HelloAgent`, `AgentInspector`, `StreamingNarrator`, `MultimodalMessenger`, `TaskLifecycleDemo`, `AuthShowcase`, `PushNotificationDemo`, `TravelPlannerAgent`, `SmartTravelPlanner` — all lifted verbatim from `a2a-client-swift 1.0.19` with updated `import A2AClient`.
+
+### Fixed
+
+- **Push notification CRUD over JSON-RPC** — `A2AClient.getPushNotificationConfig` and `listPushNotificationConfigs` now pass `taskId` / `id` as query items so the JSON-RPC transport can re-materialize them in `params`. Previously the methods sent empty `params: {}` over JSON-RPC, causing the server to reject the request.
+- **REST push notification CRUD body format** — server now accepts both the flat `PushNotificationConfig` and the wrapped `CreatePushNotificationConfigParams` shapes in the POST body.
 
 ### Migrated from a2a-client-swift 1.0.19
 
 - All models (`AgentCard`, `Task`, `Message`, `Part`, `TaskState`, `Artifact`, `SecurityScheme`, `PushNotificationConfig`, `Errors`) moved to `A2ACore/Models/`.
+- `SendMessageRequest` and `SendMessageResponse` moved to `A2ACore/Models/SendMessageTypes.swift` so the server can emit them as wire types.
 - `StreamingEvents` moved to `A2ACore/Streaming/`.
+- `SSEParser` extracted from `HTTPTransport` and moved to `A2ACore/Streaming/SSEParser.swift` as a public type, reused by both client and server.
+- `A2AEndpoint`, `HTTPMethod`, `A2AServiceParameters`, `JSONKeyCasing` moved to `A2ACore/Transport/Endpoint.swift` — the server uses the same endpoint definitions the client does.
 - `AnyCodable` moved to `A2ACore/Extensions/`.
 - Client transports (`HTTPTransport`, `JSONRPCTransport`), client (`A2AClient`, `A2AClientConfiguration`), and authentication providers remain in `A2AClient/` and now import `A2ACore`.
 - 119 tests lifted from `a2a-client-swift` pass unchanged.
 
+### Test results
+
+- `A2ACoreTests`: 49 model/streaming tests pass.
+- `A2AClientTests`: 10 auth tests, 11 transport tests pass.
+- `A2AInteropTests`: 17 full-stack tests pass.
+- **Total: 136/136 tests pass** on macOS 14 with Swift 6.0.
+
 ### Deferred
 
-- `A2AServer` only ships a version constant in 1.1.0-alpha. Full server implementation (handler protocol, router, REST + JSON-RPC dispatchers, SSE encoder, webhook delivery, auth enforcement, task store) is planned for 1.1.0.
-- Server examples: 6 new server examples + 9 lifted client examples.
-- TCK conformance CI job.
+- TCK conformance CI job — the A2A TCK is Python-based; wiring it up is a follow-up.
+- gRPC transport binding.
+- Durable webhook queue (in-memory retry only in 1.1.0).
+- Persistent store backends (Postgres, Redis) — available via the `TaskStore` / `WebhookStore` protocols for consumers.
 
+## [1.1.0-alpha] - 2026-04-14
+
+Initial lift from `a2a-client-swift 1.0.19`. See git history for details.
+
+[1.1.0]: https://github.com/tolgaki/a2a-swift/releases/tag/1.1.0
 [1.1.0-alpha]: https://github.com/tolgaki/a2a-swift/releases/tag/1.1.0-alpha

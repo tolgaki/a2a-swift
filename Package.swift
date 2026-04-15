@@ -17,6 +17,9 @@ let package = Package(
         .library(name: "A2AClient", targets: ["A2AClient"]),
         .library(name: "A2AServer", targets: ["A2AServer"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.5.0"),
+    ],
     targets: [
         .target(
             name: "A2ACore",
@@ -29,7 +32,10 @@ let package = Package(
         ),
         .target(
             name: "A2AServer",
-            dependencies: ["A2ACore"],
+            dependencies: [
+                "A2ACore",
+                .product(name: "Hummingbird", package: "hummingbird"),
+            ],
             path: "Sources/A2AServer"
         ),
         .testTarget(
@@ -41,6 +47,82 @@ let package = Package(
             name: "A2AClientTests",
             dependencies: ["A2ACore", "A2AClient"],
             path: "Tests/A2AClientTests"
+        ),
+        .testTarget(
+            name: "A2AInteropTests",
+            dependencies: ["A2ACore", "A2AClient", "A2AServer"],
+            path: "Tests/A2AInteropTests"
+        ),
+
+        // MARK: - Example executables
+
+        // New server examples
+        .executableTarget(
+            name: "EchoAgent",
+            dependencies: ["A2AServer"],
+            path: "Examples/EchoAgent"
+        ),
+        .executableTarget(
+            name: "CustomHandler",
+            dependencies: ["A2AServer"],
+            path: "Examples/CustomHandler"
+        ),
+        .executableTarget(
+            name: "StreamingAgent",
+            dependencies: ["A2AServer"],
+            path: "Examples/StreamingAgent"
+        ),
+        .executableTarget(
+            name: "PushNotificationsAgent",
+            dependencies: ["A2AServer", "A2AClient"],
+            path: "Examples/PushNotificationsAgent"
+        ),
+        .executableTarget(
+            name: "MultiAgent",
+            dependencies: ["A2AServer", "A2AClient"],
+            path: "Examples/MultiAgent"
+        ),
+        .executableTarget(
+            name: "SimpleClient",
+            dependencies: ["A2AClient"],
+            path: "Examples/SimpleClient"
+        ),
+
+        // Lifted client examples
+        .executableTarget(
+            name: "HelloAgent",
+            dependencies: ["A2AClient"],
+            path: "Examples/HelloAgent"
+        ),
+        .executableTarget(
+            name: "AgentInspector",
+            dependencies: ["A2AClient"],
+            path: "Examples/AgentInspector"
+        ),
+        .executableTarget(
+            name: "StreamingNarrator",
+            dependencies: ["A2AClient"],
+            path: "Examples/StreamingNarrator"
+        ),
+        .executableTarget(
+            name: "MultimodalMessenger",
+            dependencies: ["A2AClient"],
+            path: "Examples/MultimodalMessenger"
+        ),
+        .executableTarget(
+            name: "TaskLifecycleDemo",
+            dependencies: ["A2AClient"],
+            path: "Examples/TaskLifecycleDemo"
+        ),
+        .executableTarget(
+            name: "AuthShowcase",
+            dependencies: ["A2AClient"],
+            path: "Examples/AuthShowcase"
+        ),
+        .executableTarget(
+            name: "PushNotificationDemo",
+            dependencies: ["A2AClient"],
+            path: "Examples/PushNotificationDemo"
         ),
     ]
 )
